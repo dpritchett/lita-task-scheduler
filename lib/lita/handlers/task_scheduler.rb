@@ -3,35 +3,48 @@ module Lita
     class TaskScheduler < Handler
       # insert handler code here
       #
-      on :unhandled_message, :rebroadcast
+#      on :unhandled_message, :rebroadcast
+
+      route /^schedule\s+"(.+)"\s+in\s+(.+)$/i, :schedule
+
+      def schedule(payload)
+        puts "scheduling"
+        payload.matches.each do |task, timing|
+          serialized = serialize_message(payload.message, new_body: task)
+          resend(serialized)
+        end
+      end
 
       def rebroadcast(payload)
-        serialized = serialize_message(payload)
+        serialized = serialize_message(payload.message)
 
-        resend(serialized)
+        key = "delay_#{rand(100..10000)}"
+        redis.set(key, serialized.to_json)
+        reloaded = JSON.parse redis.get(key), symbolize_names: true
+
+        resend(reloaded)
       end
 
       def resend(serialized)
         user = Lita::User.new(serialized.fetch(:user_name))
         room = Lita::Room.new(serialized.fetch(:room_name))
         source = Lita::Source.new(user: user, room: room)
+        body = "#{robot.name} #{serialized.fetch(:body)}"
 
         newmsg = Lita::Message.new(
           robot,
-          "#{robot.name} double #{rand(1..100)}",
+          body,
           source
         )
 
         robot.receive newmsg
       end
 
-      def serialize_message(payload)
-        msg = payload.fetch(:message)
-
+      def serialize_message(message, new_body: nil)
         {
-          user_name: msg.user.name,
-          room_name: msg.source.room,
-          body: msg.body
+          user_name: message.user.name,
+          room_name: message.source.room,
+          body: new_body || message.body
         }
       end
 
