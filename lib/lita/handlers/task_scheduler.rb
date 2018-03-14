@@ -1,14 +1,10 @@
 module Lita
   module Handlers
     class TaskScheduler < Handler
-      # insert handler code here
-      #
-#      on :unhandled_message, :rebroadcast
 
       route /^schedule\s+"(.+)"\s+in\s+(.+)$/i, :schedule
 
       def schedule(payload)
-        puts "scheduling"
         payload.matches.each do |task, timing|
           serialized = serialize_message(payload.message, new_body: task)
           resend(serialized)
