@@ -1,14 +1,44 @@
+require 'pry'
+
 module Lita
   module Handlers
     class TaskScheduler < Handler
 
       route /^schedule\s+"(.+)"\s+in\s+(.+)$/i, :schedule
+      route /^show schedule$/i, :show_schedule
+
+      def show_schedule(payload)
+        message = payload.matches.last
+        payload.reply "Scheduled tasks:"
+      end
 
       def schedule(payload)
-        payload.matches.each do |task, timing|
-          serialized = serialize_message(payload.message, new_body: task)
-          resend(serialized)
-        end
+        task,timing = payload.matches.last
+        run_at = parse_timing(timing)
+        puts run_at
+        serialized = serialize_message(payload.message, new_body: task)
+        resend(serialized)
+      end
+
+      def parse_timing(timing)
+        count, unit = timing.split
+        count = count.to_i
+        unit = unit.downcase.strip.gsub(/s$/, '')
+
+        seconds = case unit
+                  when 'second'
+                    count
+                  when 'minute'
+                    count * 60
+                  when 'hour'
+                    count * 60 * 60
+                  when 'day'
+                    count * 60 * 60 * 24
+                  else
+                    raise ArgumentError, "I don't recognize #{unit}"
+                  end
+
+        Time.now.utc + seconds
       end
 
       def rebroadcast(payload)
