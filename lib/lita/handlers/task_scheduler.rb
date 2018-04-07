@@ -1,5 +1,4 @@
-require 'pry'
-require 'json'
+require 'lita/scheduler'
 
 module Lita
   module Handlers
@@ -9,16 +8,16 @@ module Lita
       route(/^show schedule$/i, :show_schedule, command: true)
       route(/^empty schedule$/i, :empty_schedule, command: true)
 
-      REDIS_TASKS_KEY = name.to_s
+      def scheduler
+        @_schedule ||= Scheduler.new(redis: redis, logger: Lita.logger)
+      end
 
       def show_schedule(payload)
-        schedule = redis.hgetall(REDIS_TASKS_KEY)
-
-        payload.reply schedule_report(schedule)
+        payload.reply schedule_report(scheduler.get)
       end
 
       def empty_schedule(payload)
-        redis.del(REDIS_TASKS_KEY)
+        scheduler.clear
         show_schedule payload
       end
 
@@ -49,20 +48,7 @@ module Lita
       end
 
       def defer_task(serialized_task, run_at)
-        key_time = run_at.to_i.to_s
-
-        redis.watch(REDIS_TASKS_KEY)
-
-        tasks = redis.hget(REDIS_TASKS_KEY, key_time) || []
-
-        tasks = JSON.parse(tasks) unless tasks.empty?
-        tasks << serialized_task
-
-        redis.hset(REDIS_TASKS_KEY, key_time, tasks.to_json)
-
-        redis.unwatch
-
-        tasks
+        scheduler.add(serialized_task, run_at)
       end
 
       def execute_tasks(serialized_tasks)
@@ -88,21 +74,7 @@ module Lita
       end
 
       def find_tasks_due
-        results = []
-        timestamps = redis.hkeys(REDIS_TASKS_KEY)
-
-        timestamps.each do |t|
-          key_time = Time.at(t.to_i)
-          next unless key_time <= Time.now
-
-          tasks_raw = redis.hget(REDIS_TASKS_KEY, t)
-          tasks = JSON.parse(tasks_raw)
-
-          results += tasks
-          redis.hdel(REDIS_TASKS_KEY, t)
-        end
-
-        results
+        scheduler.find_tasks_due
       end
 
       def parse_timing(timing)
@@ -124,16 +96,6 @@ module Lita
                   end
 
         Time.now.utc + seconds
-      end
-
-      def rebroadcast(payload)
-        serialized = serialize_message(payload.message)
-
-        key = "delay_#{rand(100..10_000)}"
-        redis.set(key, serialized.to_json)
-        reloaded = JSON.parse redis.get(key), symbolize_names: true
-
-        resend(reloaded)
       end
 
       def resend(serialized)
