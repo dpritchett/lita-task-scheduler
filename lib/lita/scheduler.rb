@@ -11,7 +11,7 @@ module Lita
 
     attr_reader :redis, :logger
 
-    def get
+    def get_all
       redis.hgetall(REDIS_TASKS_KEY)
     end
 

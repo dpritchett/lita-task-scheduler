@@ -4,16 +4,15 @@ module Lita
   module Handlers
     class TaskScheduler < Handler
 
-      route(/^schedule\s+"(.+)"\s+in\s+(.+)$/i, :schedule_command, command: true)
+      # START:routes
       route(/^show schedule$/i, :show_schedule, command: true)
       route(/^empty schedule$/i, :empty_schedule, command: true)
+      route(/^schedule\s+"(.+)"\s+in\s+(.+)$/i, :schedule_command, command: true)
+      # END:routes
 
-      def scheduler
-        @_schedule ||= Scheduler.new(redis: redis, logger: Lita.logger)
-      end
-
+      # START:handlers
       def show_schedule(payload)
-        payload.reply schedule_report(scheduler.get)
+        payload.reply schedule_report(scheduler.get_all)
       end
 
       def empty_schedule(payload)
@@ -21,8 +20,21 @@ module Lita
         show_schedule payload
       end
 
+      def schedule_command(payload)
+        task, timing = payload.matches.last
+        run_at = parse_timing(timing)
+        serialized = command_to_hash(payload.message, new_body: task)
+
+        defer_task(serialized, run_at)
+        show_schedule payload
+      end
+      # END:handlers
+
+      def scheduler
+        @_schedule ||= Scheduler.new(redis: redis, logger: Lita.logger)
+      end
+
       def schedule_report(schedule)
-        reply = 'Scheduled tasks: '
         descriptions = []
 
         schedule.keys.each do |timestamp|
@@ -35,41 +47,16 @@ module Lita
           end
         end
 
-        reply + (descriptions.empty? ? 'None.' : descriptions.join)
-      end
-
-      def schedule_command(payload)
-        task, timing = payload.matches.last
-        run_at = parse_timing(timing)
-        serialized = serialize_message(payload.message, new_body: task)
-
-        defer_task(serialized, run_at)
-        show_schedule(payload)
+        'Scheduled tasks: ' + (descriptions.empty? ? 'None.' : descriptions.join)
       end
 
       def defer_task(serialized_task, run_at)
         scheduler.add(serialized_task, run_at)
       end
 
-      def execute_tasks(serialized_tasks)
-        serialized_tasks.each do |serialized_task|
-          Lita.logger.debug "Resending task #{serialized_task}"
-          resend serialized_task
-        end
-      end
-
-      def run_loop
-        Thread.new do
-          loop do
-            tick
-            sleep 1
-          end
-        end
-      end
-
       def tick
         tasks = find_tasks_due
-        tasks.each { |t| resend t }
+        tasks.each { |t| resend_command t }
         Lita.logger.debug "Task loop done for #{Time.now}"
       end
 
@@ -98,11 +85,11 @@ module Lita
         Time.now.utc + seconds
       end
 
-      def resend(serialized)
-        user = Lita::User.new(serialized.fetch('user_name'))
-        room = Lita::Room.new(serialized.fetch('room_name'))
+      def resend_command(command_hash)
+        user = Lita::User.new(command_hash.fetch('user_name'))
+        room = Lita::Room.new(command_hash.fetch('room_name'))
         source = Lita::Source.new(user: user, room: room)
-        body = "#{robot.name} #{serialized.fetch('body')}"
+        body = "#{robot.name} #{command_hash.fetch('body')}"
 
         newmsg = Lita::Message.new(
           robot,
@@ -113,12 +100,21 @@ module Lita
         robot.receive newmsg
       end
 
-      def serialize_message(message, new_body: nil)
+      def command_to_hash(command, new_body: nil)
         {
-          user_name: message.user.name,
-          room_name: message.source.room,
-          body: new_body || message.body
+          user_name: command.user.name,
+          room_name: command.source.room,
+          body: new_body || command.body
         }
+      end
+
+      def run_loop
+        Thread.new do
+          loop do
+            tick
+            sleep 1
+          end
+        end
       end
 
       Lita.register_handler(self)

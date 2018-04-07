@@ -8,6 +8,7 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
   describe 'routing' do
     it { is_expected.to route('Lita schedule "show schedule" in 2 hours') }
     it { is_expected.to route('Lita show schedule') }
+    it { is_expected.to route('Lita empty schedule') }
   end
 
   describe 'functionality' do
@@ -71,21 +72,12 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
     end
   end
 
-  describe 'execute_tasks' do
-    it 'resends each task' do
-      tasks = [{}, {}]
-
-      expect(subject).to receive(:resend).exactly(2).times
-      subject.execute_tasks(tasks)
-    end
-  end
-
   describe 'tick' do
     before { subject.stub(:find_tasks_due).and_return ['a_task'] }
 
     it 'should find tasks due and resend them' do
       expect(subject).to receive(:find_tasks_due)
-      expect(subject).to receive(:resend).with('a_task')
+      expect(subject).to receive(:resend_command).with('a_task')
 
       subject.tick
     end
