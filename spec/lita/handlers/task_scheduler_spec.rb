@@ -2,6 +2,7 @@ require 'spec_helper'
 
 describe Lita::Handlers::TaskScheduler, lita_handler: true do
   let(:robot) { Lita::Robot.new(registry) }
+  before(:suite) { subject.scheduler.clear }
 
   subject { described_class.new(robot) }
 
