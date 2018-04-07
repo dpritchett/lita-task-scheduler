@@ -8,14 +8,25 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
   describe 'routing' do
     it { is_expected.to route('Lita schedule "show schedule" in 2 hours') }
     it { is_expected.to route('Lita show schedule') }
-
-    it 'Displays the schedule' do
-      send_message 'Lita schedule "show schedule" in 1 second'
-      expect(replies.last.include?('Scheduled tasks')).to be_truthy
-    end
   end
 
   describe 'functionality' do
+
+    describe ':schedule_report' do
+      context 'tasks are scheduled'
+      before do
+        send_message 'Lita schedule "show schedule" in 1 seconds'
+        send_message 'Lita schedule "show schedule" in 6 seconds'
+      end
+
+      it 'should list scheduled tasks on demand' do
+        message = double 'message'
+        expect(message).to receive(:reply)
+        subject.show_schedule(message)
+        send_message 'Lita show schedule'
+      end
+    end
+
     describe ':defer_task' do
       it 'defers any single task' do
         message = { canary_message: Time.now }
@@ -64,7 +75,6 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
     it 'resends each task' do
       tasks = [{}, {}]
 
-      subject.stub(:resend)
       expect(subject).to receive(:resend).exactly(2).times
       subject.execute_tasks(tasks)
     end

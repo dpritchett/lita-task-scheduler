@@ -5,8 +5,9 @@ module Lita
   module Handlers
     class TaskScheduler < Handler
 
-      route(/^schedule\s+"(.+)"\s+in\s+(.+)$/i, :create_schedule)
-      route(/^show schedule$/i, :show_schedule)
+      route(/^schedule\s+"(.+)"\s+in\s+(.+)$/i, :schedule_command, command: true)
+      route(/^show schedule$/i, :show_schedule, command: true)
+      route(/^empty schedule$/i, :empty_schedule, command: true)
 
       REDIS_TASKS_KEY = name.to_s
 
@@ -16,18 +17,35 @@ module Lita
         payload.reply schedule_report(schedule)
       end
 
-      def schedule_report(schedule)
+      def empty_schedule(payload)
+        redis.del(REDIS_TASKS_KEY)
+        show_schedule payload
       end
 
-      def create_schedule(payload)
+      def schedule_report(schedule)
+        reply = 'Scheduled tasks: '
+        descriptions = []
+
+        schedule.keys.each do |timestamp|
+          play_time = Time.at(timestamp.to_i)
+          tasks_json = schedule[timestamp]
+          tasks = JSON.parse(tasks_json)
+
+          tasks.each do |task|
+            descriptions << "\n - \"#{task.fetch('body')}\" at #{play_time}"
+          end
+        end
+
+        reply + (descriptions.empty? ? 'None.' : descriptions.join)
+      end
+
+      def schedule_command(payload)
         task, timing = payload.matches.last
         run_at = parse_timing(timing)
-        puts run_at
         serialized = serialize_message(payload.message, new_body: task)
 
         defer_task(serialized, run_at)
-
-        resend(serialized)
+        show_schedule(payload)
       end
 
       def defer_task(serialized_task, run_at)
@@ -54,10 +72,12 @@ module Lita
         end
       end
 
-      def loop
-        loop do
-          tick
-          sleep 1
+      def run_loop
+        Thread.new do
+          loop do
+            tick
+            sleep 1
+          end
         end
       end
 
@@ -79,6 +99,7 @@ module Lita
           tasks = JSON.parse(tasks_raw)
 
           results += tasks
+          redis.hdel(REDIS_TASKS_KEY, t)
         end
 
         results
@@ -116,10 +137,10 @@ module Lita
       end
 
       def resend(serialized)
-        user = Lita::User.new(serialized.fetch(:user_name))
-        room = Lita::Room.new(serialized.fetch(:room_name))
+        user = Lita::User.new(serialized.fetch('user_name'))
+        room = Lita::Room.new(serialized.fetch('room_name'))
         source = Lita::Source.new(user: user, room: room)
-        body = "#{robot.name} #{serialized.fetch(:body)}"
+        body = "#{robot.name} #{serialized.fetch('body')}"
 
         newmsg = Lita::Message.new(
           robot,
@@ -139,6 +160,10 @@ module Lita
       end
 
       Lita.register_handler(self)
+
+      on :loaded do
+        run_loop
+      end
     end
   end
 end
