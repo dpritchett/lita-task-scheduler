@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "lita-task-scheduler"
-  spec.version       = "0.1.1"
+  spec.version       = "1.0.0"
   spec.authors       = ["Daniel J. Pritchett"]
   spec.email         = ["dpritchett@gmail.com"]
   spec.description   = "Schedule jobs in Lita"
