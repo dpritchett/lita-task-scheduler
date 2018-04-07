@@ -28,7 +28,6 @@ module Lita
       redis.hset(REDIS_TASKS_KEY, key_time, tasks.to_json)
 
       redis.unwatch
-
       tasks
     end
 
@@ -38,6 +37,7 @@ module Lita
 
     def find_tasks_due
       results = []
+      redis.watch(REDIS_TASKS_KEY)
       timestamps = redis.hkeys(REDIS_TASKS_KEY)
 
       timestamps.each do |t|
@@ -51,6 +51,7 @@ module Lita
         redis.hdel(REDIS_TASKS_KEY, t)
       end
 
+      redis.unwatch
       results
     end
   end
