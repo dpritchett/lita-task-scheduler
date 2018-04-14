@@ -6,11 +6,13 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
 
   subject { described_class.new(robot) }
 
+  # START:routes
   describe 'routing' do
-    it { is_expected.to route('Lita schedule "show schedule" in 2 hours') }
+    it { is_expected.to route('Lita schedule "double 4" in 2 hours') }
     it { is_expected.to route('Lita show schedule') }
     it { is_expected.to route('Lita empty schedule') }
   end
+  # END:routes
 
   describe 'functionality' do
 
@@ -84,6 +86,7 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
     end
   end
 
+  # START:parse_timing
   describe ':parse_timing' do
     def time_drift(time, expected_seconds:)
       delta = (Time.now.utc - time).abs
@@ -105,4 +108,5 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
       end
     end
   end
+  # END:parse_timing
 end

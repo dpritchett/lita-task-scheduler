@@ -5,9 +5,9 @@ module Lita
     class TaskScheduler < Handler
 
       # START:routes
+      route(/^schedule\s+"(.+)"\s+in\s+(.+)$/i, :schedule_command, command: true)
       route(/^show schedule$/i, :show_schedule, command: true)
       route(/^empty schedule$/i, :empty_schedule, command: true)
-      route(/^schedule\s+"(.+)"\s+in\s+(.+)$/i, :schedule_command, command: true)
       # END:routes
 
       # START:handlers
@@ -20,6 +20,7 @@ module Lita
         show_schedule payload
       end
 
+      # START:schedule_command
       def schedule_command(payload)
         task, timing = payload.matches.last
         run_at = parse_timing(timing)
@@ -28,7 +29,7 @@ module Lita
         defer_task(serialized, run_at)
         show_schedule payload
       end
-      # END:handlers
+      # END:schedule_command
 
       def scheduler
         @_schedule ||= Scheduler.new(redis: redis, logger: Lita.logger)
@@ -64,6 +65,7 @@ module Lita
         scheduler.find_tasks_due
       end
 
+      # START:parse_timing
       def parse_timing(timing)
         count, unit = timing.split
         count = count.to_i
@@ -84,6 +86,7 @@ module Lita
 
         Time.now.utc + seconds
       end
+      # END:parse_timing
 
       def resend_command(command_hash)
         user = Lita::User.new(command_hash.fetch('user_name'))
@@ -100,6 +103,7 @@ module Lita
         robot.receive newmsg
       end
 
+      # START:serialize_message
       def command_to_hash(command, new_body: nil)
         {
           user_name: command.user.name,
@@ -107,6 +111,7 @@ module Lita
           body: new_body || command.body
         }
       end
+      # END:serialize_message
 
       def run_loop
         Thread.new do
