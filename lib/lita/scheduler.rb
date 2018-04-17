@@ -1,5 +1,6 @@
 require 'json'
 
+# START:preamble
 module Lita
   class Scheduler
     REDIS_TASKS_KEY = name.to_s
@@ -14,7 +15,9 @@ module Lita
     def get_all
       redis.hgetall(REDIS_TASKS_KEY)
     end
+    # END:preamble
 
+    # START:store_new
     def add(payload, timestamp)
       key_time = timestamp.to_i.to_s
 
@@ -30,11 +33,13 @@ module Lita
       redis.unwatch
       tasks
     end
+    # END:store_new
 
     def clear
       redis.del(REDIS_TASKS_KEY)
     end
 
+    # START:find_tasks_due
     def find_tasks_due
       results = []
       timestamps = redis.hkeys(REDIS_TASKS_KEY)
@@ -52,5 +57,6 @@ module Lita
 
       results
     end
+    # END:find_tasks_due
   end
 end

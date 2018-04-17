@@ -31,6 +31,7 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
       end
     end
 
+    # START: defer_task
     describe ':defer_task' do
       it 'defers any single task' do
         message = { canary_message: Time.now }
@@ -52,7 +53,9 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
         expect(result).to eq([message] * 6)
       end
     end
+    # END: defer_task
 
+    # START:find_tasks_due
     describe ':find_tasks_due' do
       context 'two tasks are scheduled for five seconds ago' do
         before { 2.times { subject.defer_task('past_task', Time.now - 5) } }
@@ -73,8 +76,10 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
         end
       end
     end
+    # END:find_tasks_due
   end
 
+  # START:loop_ticks
   describe 'tick' do
     before { subject.stub(:find_tasks_due).and_return ['a_task'] }
 
@@ -85,6 +90,7 @@ describe Lita::Handlers::TaskScheduler, lita_handler: true do
       subject.tick
     end
   end
+  # END:loop_ticks
 
   # START:parse_timing
   describe ':parse_timing' do

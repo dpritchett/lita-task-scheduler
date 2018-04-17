@@ -51,19 +51,11 @@ module Lita
         'Scheduled tasks: ' + (descriptions.empty? ? 'None.' : descriptions.join)
       end
 
+      # START:defer_task
       def defer_task(serialized_task, run_at)
         scheduler.add(serialized_task, run_at)
       end
-
-      def tick
-        tasks = find_tasks_due
-        tasks.each { |t| resend_command t }
-        Lita.logger.debug "Task loop done for #{Time.now}"
-      end
-
-      def find_tasks_due
-        scheduler.find_tasks_due
-      end
+      # END:defer_task
 
       # START:parse_timing
       def parse_timing(timing)
@@ -88,6 +80,7 @@ module Lita
       end
       # END:parse_timing
 
+      # START:resend_command
       def resend_command(command_hash)
         user = Lita::User.new(command_hash.fetch('user_name'))
         room = Lita::Room.new(command_hash.fetch('room_name'))
@@ -102,6 +95,7 @@ module Lita
 
         robot.receive newmsg
       end
+      # END:resend_command
 
       # START:serialize_message
       def command_to_hash(command, new_body: nil)
@@ -113,6 +107,11 @@ module Lita
       end
       # END:serialize_message
 
+      def find_tasks_due
+        scheduler.find_tasks_due
+      end
+
+      # START:loop_ticks
       def run_loop
         Thread.new do
           loop do
@@ -122,11 +121,16 @@ module Lita
         end
       end
 
-      Lita.register_handler(self)
-
-      on :loaded do
-        run_loop
+      def tick
+        tasks = find_tasks_due
+        tasks.each { |t| resend_command t }
+        Lita.logger.debug "Task loop done for #{Time.now}"
       end
+
+      on(:loaded) { run_loop }
+      # END:loop_ticks
+
+      Lita.register_handler(self)
     end
   end
 end
